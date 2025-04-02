@@ -1,0 +1,38 @@
+stateDiagram-v2
+    [*] --> extract_info
+
+    extract_info --> extract_info: needs more info
+    extract_info --> generate_question: stage == "generate_question"
+    extract_info --> retrieve_context: stage == "retrieve_context"
+    extract_info --> [*]: stage == "wait_for_user" or "complete"
+    
+    generate_question --> extract_info: returns to extract info
+    generate_question --> generate_question: needs refinement
+    generate_question --> [*]: stage == "wait_for_user" or "end"
+    
+    retrieve_context --> retrieve_context: processing context
+    retrieve_context --> generate_rule: stage == "generate_rule"
+    retrieve_context --> [*]: stage == "end"
+    
+    generate_rule --> [*]: always ends after rule generation
+
+    note right of extract_info
+        Extracts service information from user messages
+        Determines if enough info is gathered
+        Progress to rule generation after 30 rounds
+    end note
+
+    note right of generate_question
+        Generates follow-up questions based on 
+        missing information in current state
+    end note
+
+    note right of retrieve_context
+        Gets context from AWS dependencies, 
+        service type, and framework
+    end note
+
+    note right of generate_rule
+        Creates PrometheusRule YAML 
+        based on service info and examples
+    end note

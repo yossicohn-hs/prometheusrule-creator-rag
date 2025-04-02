@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opensearch.rules
+spec:
+  groups:
+  - name: opensearch.rules
+    rules:
+      - alert: ClusterHighCPU
+        annotations:
+          description: OpenSearch cluster {{ $labels.dimension_DomainName }} - CPU
+            Utilization is more than {{ $value | humanizePercentage }} for 15 minutes
+          summary: |
+            OpenSearch {{ $labels.dimension_DomainName }} has high cpu {{ $value | humanizePercentage }}
+        expr: |
+          avg(aws_es_master_cpuutilization_average) > 90
+        for: 15m
+        labels:
+          owner: ops
+          severity: critical
+      - alert: ClusterStatusRed
+        annotations:
+          description: ElasticOpenSearch cluster {{ $labels.dimension_DomainName }}
+            state is red!
+          summary: |
+            OpenSearch {{ $labels.dimension_DomainName }} is not healthy
+        expr: |
+          max by (dimension_DomainName) (aws_es_cluster_status_red_maximum) > 0
+        for: 1m
+        labels:
+          owner: ops
+          severity: critical
+      - alert: HighSearchLatency
+        annotations:
+          description: OpenSearch cluster {{ $labels.dimension_DomainName }} - Search
+            Latency is more than 500ms for 5 minutes
+          summary: |
+            OpenSearch {{ $labels.dimension_DomainName }} has high search latency
+        expr: |
+          avg by (dimension_DomainName) (aws_es_search_latency_average[5m]) >
+          500
+        for: 5m
+        labels:
+          owner: ops
+          severity: critical

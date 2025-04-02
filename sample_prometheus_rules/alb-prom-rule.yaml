@@ -1,0 +1,111 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: alb.rules
+  namespace: alb
+spec:
+  groups:
+  - name: alb.rules
+    rules:
+    - alert: ALB5xxErrorsHighCriticalPercentage
+      annotations:
+        description: The number of 5xx errors from the ALB target group is high > 2%.
+        summary: ALB 5xx Errors Percentage High
+      expr: |
+        increase(aws_applicationelb_httpcode_target_5_xx_count_sum{dimension_TargetGroup=~".*type.*", dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])/4/
+        increase(aws_applicationelb_request_count_per_target_sum{dimension_TargetGroup=~".*type.*",  dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])  *100 > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: ALBTargetResponseTimeHigh
+      annotations:
+        description: The average response time of the ALB target group is high.
+        summary: ALB Target Response Time High
+      expr: |
+        aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"} > 0.5
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: ALBTargetResponseTimeHighCritical
+      annotations:
+        description: The average response time of the ALB target group is high.
+        summary: ALB Target Response Time High
+      expr: |
+        aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"} > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: ALBUnhealthyHostsHigh
+      annotations:
+        description: The number of unhealthy hosts in the ALB target group is high > 1.
+        summary: ALB Unhealthy Hosts High
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_un_healthy_host_count_sum{dimension_TargetGroup=~".*httpsrv.*"}) > 1
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: ALBUnhealthyHostsHighCritical
+      annotations:
+        description: The number of unhealthy hosts in the ALB target group is high > 2.
+        summary: ALB Unhealthy Hosts High
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_un_healthy_host_count_sum{dimension_TargetGroup=~".*httpsrv.*"}) > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: HighRequestCount
+      annotations:
+        description: High count of requests for HTTP-service
+        summary: High count of requests for HTTP-service
+      expr: |
+        aws_applicationelb_request_count_average{dimension_TargetGroup=~".*httpsrv.*"} > 50
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HighRequestCountCritical
+      annotations:
+        description: High count of requests for HTTP-service
+        summary: High count of requests for HTTP-service
+      expr: |
+        aws_applicationelb_request_count_average{dimension_TargetGroup=~".*httpsrv.*"} > 150
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: LB4xxErrorsHighCriticalPercentage
+      annotations:
+        description: The number of 4xx errors from the ALB target group is high > 10%.
+        summary: ALB 4xx Errors Percentage High
+      expr: |
+        increase(aws_applicationelb_httpcode_target_4_xx_count_sum{dimension_TargetGroup=~".*type.*", dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])/4/
+        increase(aws_applicationelb_request_count_per_target_sum{dimension_TargetGroup=~".*type.*",  dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])  *100 > 10
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HTTPLatencyCritical
+      annotations:
+        description: HTTP Service Latency is greater than 2 seconds
+        summary: HTTP Service Latency is greater than 2 seconds
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"}) > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: Critical
+    - alert: HTTPLatencyWarning
+      annotations:
+        description: HTTP Service Latency is greater than 0.5 seconds
+        summary: HTTP Service Latency is greater than 0.5 seconds
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"}) > 0.5
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning

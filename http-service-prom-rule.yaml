@@ -1,0 +1,228 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    framework: golang
+    type: HTTP
+  name: http-service.rules
+  namespace: http-service
+spec:
+  groups:
+  - name: http-service.rules
+    rules:
+    - alert: ALB5xxErrorsHighCriticalPercentage
+      annotations:
+        description: The number of 5xx errors from the ALB target group is high > 2%.
+        summary: ALB 5xx Errors Percentage High
+      expr: |
+        increase(aws_applicationelb_httpcode_target_5_xx_count_sum{dimension_TargetGroup=~".*type.*", dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])/4/
+        increase(aws_applicationelb_request_count_per_target_sum{dimension_TargetGroup=~".*type.*",  dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])  *100 > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: ALBTargetResponseTimeHigh
+      annotations:
+        description: The average response time of the ALB target group is high.
+        summary: ALB Target Response Time High
+      expr: |
+        aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"} > 0.5
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: ALBTargetResponseTimeHighCritical
+      annotations:
+        description: The average response time of the ALB target group is high.
+        summary: ALB Target Response Time High
+      expr: |
+        aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"} > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: ALBUnhealthyHostsHigh
+      annotations:
+        description: The number of unhealthy hosts in the ALB target group is high > 1.
+        summary: ALB Unhealthy Hosts High
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_un_healthy_host_count_sum{dimension_TargetGroup=~".*httpsrv.*"}) > 1
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: ALBUnhealthyHostsHighCritical
+      annotations:
+        description: The number of unhealthy hosts in the ALB target group is high > 2.
+        summary: ALB Unhealthy Hosts High
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_un_healthy_host_count_sum{dimension_TargetGroup=~".*httpsrv.*"}) > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: DesiredVsActualPods
+      annotations:
+        description: Desired pods for HTTP-service is larger than actual pods
+          for too long. Please ensure everything is configured correctly.
+        summary: Desired pods larger than actual pods - HTTP-service
+      expr: |
+        ((
+          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{exported_namespace=~"HTTP-service"}[5m])) by (exported_namespace) /
+          avg(avg_over_time(kube_deployment_spec_replicas{exported_namespace=~"HTTP-service"}[5m])) by (exported_namespace)
+        ) or (
+          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{namespace=~"HTTP-service"}[5m])) by (namespace) /
+          avg(avg_over_time(kube_deployment_spec_replicas{namespace=~"HTTP-service"}[5m])) by (namespace)
+        )) < 0.9
+      for: 10m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HighMemoryConsumption
+      annotations:
+        description: |
+          Memory usage {{ $value | humanizePercentage }} of {{ $labels.namespace }} for container {{ $labels.container }} is too high.
+          Please check the service for memory leaks or increase the memory if needed.
+        summary: |
+          High memory usage - service {{ $labels.namespace }} / container {{ $labels.container }}
+      expr: |
+        (
+          max(max_over_time(container_memory_usage_bytes{namespace="HTTP-service", container!=""}[5m])) by (namespace, container) /
+          avg(avg_over_time(container_spec_memory_limit_bytes{namespace="HTTP-service", container!=""}[5m])) by (namespace, container)
+        ) > 0.9
+      for: 10m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HighRequestCount
+      annotations:
+        description: High count of requests for HTTP-service
+        summary: High count of requests for HTTP-service
+      expr: |
+        aws_applicationelb_request_count_average{dimension_TargetGroup=~".*httpsrv.*"} > 50
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HighRequestCountCritical
+      annotations:
+        description: High count of requests for HTTP-service
+        summary: High count of requests for HTTP-service
+      expr: |
+        aws_applicationelb_request_count_average{dimension_TargetGroup=~".*httpsrv.*"} > 150
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: LB4xxErrorsHighCriticalPercentage
+      annotations:
+        description: The number of 4xx errors from the ALB target group is high > 10%.
+        summary: ALB 4xx Errors Percentage High
+      expr: |
+        increase(aws_applicationelb_httpcode_target_4_xx_count_sum{dimension_TargetGroup=~".*type.*", dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])/4/
+        increase(aws_applicationelb_request_count_per_target_sum{dimension_TargetGroup=~".*type.*",  dimension_LoadBalancer=~".*prodpub.*", dimension_AvailabilityZone=""}[1m])  *100 > 10
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: OpenSearchCPUUtilizationCritical
+      annotations:
+        description: Opensearch for HTTP CPU Utilizationis greater than 95%
+        summary: Opensearch for HTTP CPU Utilizationis greater than 95%
+      expr: |
+        avg by(dimension_DomainName)(aws_es_cpuutilization_average{dimension_DomainName=~".*HTTP.*"}) > 95
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: OpenSearchCPUUtilizationWarning
+      annotations:
+        description: Opensearch for HTTP CPU Utilizationis greater than 75%
+        summary: Opensearch for HTTP CPU Utilizationis greater than 75%
+      expr: |
+        avg by(dimension_DomainName)(aws_es_cpuutilization_average{dimension_DomainName=~".*HTTP.*"}) > 75
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: OpenSearchFreeStorageCritical
+      annotations:
+        description: Opensearch for HTTP Free Storage is less than 5GB
+        summary: Opensearch for HTTP Free Storage is less than 5GB
+      expr: |
+        avg by(dimension_DomainName)(aws_es_free_storage_space_minimum{dimension_DomainName=~".*HTTP.*"}) < 5000
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: OpenSearchFreeStorageWarning
+      annotations:
+        description: Opensearch for HTTP Free Storage is less than 20GB
+        summary: Opensearch for HTTP Free Storage is less than 20GB
+      expr: |
+        avg by(dimension_DomainName)(aws_es_free_storage_space_minimum{dimension_DomainName=~".*HTTP.*"}) < 20000
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: OpenSearchRedStatusCritical
+      annotations:
+        description: Opensearch Status for HTTP is RED
+        summary: Opensearch Used by HTTP-Service is RED
+      expr: |
+        aws_es_cluster_status_red_maximum{dimension_DomainName=~".*HTTP.*"} > 50
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: OpenSearchRedStatusWarning
+      annotations:
+        description: Opensearch Status for HTTP is RED
+        summary: Opensearch Used by HTTP-Service is Starting to chaneg to RED
+      expr: |
+        aws_es_cluster_status_red_maximum{dimension_DomainName=~".*HTTP.*"} > 10
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: OpenSearchSearchLatencyCritical
+      annotations:
+        description: Opensearch for HTTP SearchLatency is greater than 0.75
+          second
+        summary: Opensearch for HTTP Free Storage is less than 20GB
+      expr: |
+        avg by(dimension_DomainName)(aws_es_search_latency_average{dimension_DomainName=~".*HTTP.*"}) > 0.75
+      for: 5m
+      labels:
+        owner: ops
+        severity: critical
+    - alert: OpenSearchYellowStatusWarning
+      annotations:
+        description: Opensearch Status for HTTP is Yellow
+        summary: Opensearch Used by HTTP-Service is Starting to chaneg to Yellow
+      expr: |
+        aws_es_cluster_status_yellow_maximum{dimension_DomainName=~".*HTTP.*"} > 30
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning
+    - alert: HTTPLatencyCritical
+      annotations:
+        description: HTTP Service Latency is greater than 2 seconds
+        summary: HTTP Service Latency is greater than 2 seconds
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"}) > 2
+      for: 5m
+      labels:
+        owner: ops
+        severity: Critical
+    - alert: HTTPLatencyWarning
+      annotations:
+        description: HTTP Service Latency is greater than 0.5 seconds
+        summary: HTTP Service Latency is greater than 0.5 seconds
+      expr: |
+        max by(dimension_LoadBalancer)(aws_applicationelb_target_response_time_average{dimension_TargetGroup=~".*httpsrv.*"}) > 0.5
+      for: 5m
+      labels:
+        owner: ops
+        severity: warning

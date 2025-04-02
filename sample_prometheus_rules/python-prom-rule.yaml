@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: python-http-service.rule
+  namespace: python-http-service
+  labels:
+    framework: python
+    type: HTTP
+spec:
+  groups:
+  - name: python-http-service.alerts
+    rules:
+    - alert: WebServiceHighLatency
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="web-service"}[5m])) by (le, service)) > 2
+      for: 5m
+      labels:
+        severity: warning
+        team: backend
+      annotations:
+        summary: "High latency in web service"
+        description: "95th percentile of request duration is above 2 seconds for more than 5 minutes."
+        dashboard_url: "https://grafana.example.com/d/web-service-dashboard"
+        
+    - alert: WebServiceHighErrorRate
+      expr: sum(rate(http_requests_total{service="web-service", status_code=~"5.."}[5m])) / sum(rate(http_requests_total{service="web-service"}[5m])) > 0.05
+      for: 3m
+      labels:
+        severity: critical
+        team: backend
+      annotations:
+        summary: "High error rate in web service"
+        description: "Error rate is above 5% for more than 3 minutes."
+        dashboard_url: "https://grafana.example.com/d/web-service-dashboard"
+        
+    - alert: WebServiceHighCPUUsage
+      expr: sum(rate(container_cpu_usage_seconds_total{namespace="my-application", pod=~"web-service-.*"}[5m])) / sum(kube_pod_container_resource_limits_cpu_cores{namespace="my-application", pod=~"web-service-.*"}) > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        team: backend
+      annotations:
+        summary: "High CPU usage in web service"
+        description: "CPU usage is above 85% of the limit for more than 10 minutes."
+        dashboard_url: "https://grafana.example.com/d/web-service-dashboard"
+        
+    - alert: WebServiceHighMemoryUsage
+      expr: sum(container_memory_usage_bytes{namespace="my-application", pod=~"web-service-.*"}) / sum(kube_pod_container_resource_limits_memory_bytes{namespace="my-application", pod=~"web-service-.*"}) > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        team: backend
+      annotations:
+        summary: "High memory usage in web service"
+        description: "Memory usage is above 85% of the limit for more than 10 minutes."
+        dashboard_url: "https://grafana.example.com/d/web-service-dashboard"

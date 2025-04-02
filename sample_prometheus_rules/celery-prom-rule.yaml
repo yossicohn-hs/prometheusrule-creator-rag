@@ -1,0 +1,98 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    framework: python
+    type: celery
+  name: celery-service.rule
+  namespace: celery-service
+spec:
+  groups:
+    - name: high-load
+      rules:
+        - alert: DesiredVsActualPods
+          annotations:
+            description: Desired pods for celery-service is larger than actual pods
+              for too long. Please ensure everything is configured correctly.
+            summary: Desired pods larger than actual pods - celery-service
+          expr: |
+            ((
+              avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{exported_namespace=~"celery-service"}[5m])) by (exported_namespace) /
+              avg(avg_over_time(kube_deployment_spec_replicas{exported_namespace=~"celery-service"}[5m])) by (exported_namespace)
+            ) or (
+              avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{namespace=~"celery-service"}[5m])) by (namespace) /
+              avg(avg_over_time(kube_deployment_spec_replicas{namespace=~"celery-service"}[5m])) by (namespace)
+            )) < 0.9
+          for: 10m
+          labels:
+            owner: ops
+            severity: warning
+        - alert: HighMemoryConsumption
+          annotations:
+            description: |
+              Memory usage {{ $value | humanizePercentage }} of {{ $labels.namespace }} for container {{ $labels.container }} is too high.
+              Please check the service for memory leaks or increase the memory if needed.
+            summary: |
+              High memory usage - service {{ $labels.namespace }} / container {{ $labels.container }}
+          expr: |
+            (
+              max(max_over_time(container_memory_usage_bytes{namespace="celery-service", container!=""}[5m])) by (namespace, container) /
+              avg(avg_over_time(container_spec_memory_limit_bytes{namespace="celery-service", container!=""}[5m])) by (namespace, container)
+            ) > 0.9
+          for: 10m
+          labels:
+            owner: ops
+            severity: warning
+        - alert: High load on queue flow1 for worker
+          annotations:
+            description: high load on {{ $labels.queue }} queue - {{ $labels.value }}
+              tasks.
+            summary: high load on {{ $labels.queue }}
+          expr: min(rabbitmq_queue_messages{queue=~"flow1.*worker",
+            applicative_environment=~"production"}) by (queue) > 100
+          for: 30m
+          labels:
+            owner: ops
+            severity: warning
+        - alert: High load on queue flow2 for worker
+          annotations:
+            description: high load on {{ $labels.queue }} queue - {{ $labels.value }}
+              tasks.
+            summary: high load on {{ $labels.queue }}
+          expr: min(rabbitmq_queue_messages{queue=~"flow2.*worker",
+            applicative_environment=~"production"}) by (queue) > 100
+          for: 30m
+          labels:
+            owner: ops
+            severity: warning
+        - alert: High load on queue flow3 for worker
+          annotations:
+            description: high load on {{ $labels.queue }} queue - {{ $labels.value }}
+              tasks.
+            summary: high load on {{ $labels.queue }}
+          expr: min(rabbitmq_queue_messages{queue=~"flow3.*worker",
+            applicative_environment=~"production"}) by (queue) > 100
+          for: 30m
+          labels:
+            owner: ops
+            severity: warning
+        - alert: RedisMemoryUsageHigh
+          annotations:
+            description: |
+              Celery Redis cluster memory usage is high.
+              This is a warning alert.
+              Possible actions:
+              A - Reduce the configuration of result_expires (default is 1 day)
+              B - Increase the size of the node.
+              Affected clusters:
+              - {{ $labels.target }}
+            summary: High memory usage detected on Redis cluster
+          expr: |2
+
+            redis_memory_used_bytes{target="celery-redis"}  /
+            redis_memory_max_bytes{target="celery-redis"} > 0.8
+          for: 5m
+          labels:
+            open_jira_ticket: "true"
+            owner: platform
+            severity: warning
