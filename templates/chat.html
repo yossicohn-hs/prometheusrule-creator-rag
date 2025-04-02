@@ -91,6 +91,11 @@
         <button id="copy-rule">Copy to clipboard</button>
     </div>
     
+    <div>
+        <button id="new-session-btn">Start New Session</button>
+        <button id="clear-session-btn">Clear Current Session</button>
+    </div>
+
     <script>
         // Store the session ID
         let sessionId = null;
@@ -194,6 +199,46 @@
         
         // Initial greeting
         addMessage('Hello! I can help you create a PrometheusRule for monitoring your Kubernetes service. Please describe your service.', false);
+  
+        let currentSessionId = sessionId;
+
+        document.getElementById("new-session-btn").addEventListener("click", async () => {
+            try {
+                const response = await fetch("/api/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: "", session_id: null }),
+                });
+                const data = await response.json();
+                currentSessionId = sessionId;
+                alert(`New session started with ID: ${currentSessionId}`);
+            } catch (error) {
+                console.error("Error starting new session:", error);
+            }
+        });
+
+        document.getElementById("clear-session-btn").addEventListener("click", async () => {
+            if (!sessionId) {
+                alert("No session to clear.");
+                return;
+            }
+            try {
+                const response = await fetch(`/api/session/${sessionId}`, {
+                    method: "DELETE",
+                });
+                if (response.ok) {
+                    alert(`Session ${sessionId} cleared successfully.`);
+                    sessionId = null;
+                    prometheusRuleSection.style.display = 'none'; // Hide PrometheusRule section
+                    chatContainer.innerHTML = ''; // Clear chat messages
+                } else {
+                    const errorData = await response.json();
+                    alert(`Error clearing session: ${errorData.detail}`);
+                }
+            } catch (error) {
+                console.error("Error clearing session:", error);
+            }
+        });
     </script>
 </body>
 </html>

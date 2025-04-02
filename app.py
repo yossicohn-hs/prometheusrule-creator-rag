@@ -77,7 +77,7 @@ async def chat(chat_message: ChatMessage):
 
     # Process message through graph
     updated_state = handle_user_input(state, chat_message.message)
-
+    updated_state["updated_state"] = session_id
     config = {"configurable": {"thread_id": session_id}}
     result = graph.invoke(updated_state, config)
 
@@ -175,10 +175,11 @@ def clear_session_and_checkpointer(session_id: str):
     # Clear in-memory session
     if session_id in sessions:
         del sessions[session_id]
-    
+
     # Clear checkpointer state (if applicable)
     if hasattr(graph, "checkpointer"):
-        graph.checkpointer.clear(session_id)
+        graph.checkpointer.storage.pop(session_id)
+
 
 # REST API endpoint to clear session and checkpointer
 @app.delete("/api/session/{session_id}")

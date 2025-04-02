@@ -8,7 +8,9 @@ from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 
 # from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+# from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+
 from langchain_core.vectorstores import VectorStore
 from dotenv import load_dotenv
 
@@ -92,7 +94,7 @@ def setup_vectorstore(
 
     # Initialize embedding model
     # embeddings = OpenAIEmbeddings()
-    embeddings = HuggingFaceBgeEmbeddings(model_name="BAAI/bge-large-en-v1.5")
+    embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5")
 
     if (
         os.path.exists(persist_directory)
@@ -118,7 +120,7 @@ def setup_vectorstore(
             persist_directory=persist_directory,
         )
         # Persist the vector store to disk
-        vectorstore.persist()
+        # vectorstore.persist()
         print(f"Vector store persisted to {persist_directory}")
     else:
         # Create in-memory vector store

@@ -1,5 +1,5 @@
-import os
-from typing import Dict, List, Optional, Any, Literal
+from json import dumps
+from typing import Dict, List, Optional, Any
 from pydantic import Field
 from langchain import hub
 from langchain_core.output_parsers import StrOutputParser
@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from embeddings import init_vectorstore
 from dotenv import load_dotenv
+
 
 load_dotenv(verbose=True)
 
@@ -33,6 +34,7 @@ class RuleGenerationState(MessagesState):
     attempt_count: int = Field(default=0)
     next_question: Optional[str] = Field(default=None)
     retrieved_docs: List[Document] = Field(default=None)
+    session_id: str = Field(default="")
 
 
 # Initialize LLM
@@ -74,13 +76,14 @@ Include variations in capitalization or phrasing that might be used in documenta
         | llm
         | StrOutputParser()
     )
-
+    config = {"configurable": {"thread_id": state.get("session_id")}}
     result_str = chain.invoke(
         {
             "aws_dependencies": aws_dependencies,
             "framework": framework,
             "service_type": service_type,
-        }
+        },
+        config,
     )
     retrieved_docs = retriever.get_relevant_documents(result_str)
     return retrieved_docs
@@ -163,12 +166,13 @@ Response format:
         all_str_messages = (
             all_str_messages + "\n" + f"------ {name} ------\n" + content + "\n"
         )
-
+    config = {"configurable": {"thread_id": state.get("session_id")}}
     result_str = chain.invoke(
         {
             "current_info": state.get("service_info", {}),
             "all_messages": all_str_messages,
-        }
+        },
+        config,
     )
 
     import json
@@ -244,6 +248,7 @@ Guidelines:
 - Don't explain why you ask the question, but be expressive
 - Keeping questions simple and direct
 - Building on information already provided
+- Always ask on Dependencies on AWS Services after you finish the query on the service itself
 
 
 Priority information to gather (if not yet known):
@@ -270,13 +275,14 @@ The resulted YAML should be verified, no redundant character or new lines
         all_str_messages = (
             all_str_messages + "\n" + f"------ {name} ------\n" + content + "\n"
         )
-
+    config = {"configurable": {"thread_id": state.get("session_id")}}
     follow_up_question = chain.invoke(
         {
             "current_info": state.get("service_info", {}),
             "all_messages": all_str_messages,
             "advised_next_questions": state.get("next_question", ""),
-        }
+        },
+        config,
     )
 
     # Return the follow-up question and stay in gather_info stage
@@ -336,13 +342,13 @@ Return ONLY the complete YAML with no additional explanation."""
         | StrOutputParser()
     )
 
-    import json
-
+    config = {"configurable": {"thread_id": state.get("session_id")}}
     rule = chain.invoke(
         {
-            "service_info": json.dumps(state.get("service_info", {}), indent=2),
+            "service_info": dumps(state.get("service_info", {}), indent=2),
             "context": "\n".join(context),
-        }
+        },
+        config,
     )
 
     # Present the result to the user
