@@ -937,7 +937,7 @@ wheels = [
 
 [[package]]
 name = "langchain"
-version = "0.3.21"
+version = "0.3.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
@@ -948,9 +948,9 @@ dependencies = [
     { name = "requests" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/54/ea3e30df3a7f6f9986cdb5a53d46a219d1e20b5a5e72a480b932a961ff30/langchain-0.3.21.tar.gz", hash = "sha256:a10c81f8c450158af90bf37190298d996208cfd15dd3accc1c585f068473d619", size = 10225431 }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/66/36ccbd6285b29473ada883b0e06fdc0973ca181431d6a0175e473160fbfb/langchain-0.3.22.tar.gz", hash = "sha256:fd7781ef02cac6f074f9c6a902236482c61976e21da96ab577874d4e5396eeda", size = 10225573 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c3/89/eeab8c671d791ce872225aa77a05805ba67052764a3faa6331fc4674e855/langchain-0.3.21-py3-none-any.whl", hash = "sha256:c8bd2372440cc5d48cb50b2d532c2e24036124f1c467002ceb15bc7b86c92579", size = 1011714 },
+    { url = "https://files.pythonhosted.org/packages/36/0e/032de736a8f9b5b5fcfec77bd92831f9f2c8a8b5072289dd1e5cc95e6edc/langchain-0.3.22-py3-none-any.whl", hash = "sha256:2e7f71a1b0280eb70af9c332c7580f6162a97fb9d5e3e87e9d579ad167f50129", size = 1011714 },
 ]
 
 [[package]]
@@ -1053,7 +1053,7 @@ wheels = [
 
 [[package]]
 name = "langgraph"
-version = "0.3.21"
+version = "0.3.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
@@ -1062,9 +1062,9 @@ dependencies = [
     { name = "langgraph-sdk" },
     { name = "xxhash" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ce/94/422f333990cc62fc9cf36025427b256f17454654c13791d7361423117c35/langgraph-0.3.21.tar.gz", hash = "sha256:971a7f3ee5f1ab4c88032023f090b7a57d59cb93ea930658aa0b7ac4767f4bcb", size = 116639 }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/ad/71d4aed9c51836385c5fc67d5d00836a2162c31d58cb60cc6754d0c270c5/langgraph-0.3.22.tar.gz", hash = "sha256:f12161ea178deddcbb5ef7d86723a344d7ef58887d1473ca91e3a4b88bcdf2a4", size = 117619 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/b5/c74644217180ca7d275179b0e0602cd433dc9d4cd40b304a6c0e62d4eb7b/langgraph-0.3.21-py3-none-any.whl", hash = "sha256:2ec761bf832f05d3a5211f0303063cf0900566200495c2cdd5545c7b3fec89ea", size = 138035 },
+    { url = "https://files.pythonhosted.org/packages/ec/3c/06e31381a04048269cb91785dff6b41c7c2034af681b86d26ea154fa4b00/langgraph-0.3.22-py3-none-any.whl", hash = "sha256:d92051383b755732f9a7a2a781ff71d5f28c292fd6a73ebfa29ad490bd1601f1", size = 139595 },
 ]
 
 [[package]]
@@ -1095,14 +1095,14 @@ wheels = [
 
 [[package]]
 name = "langgraph-cli"
-version = "0.1.81"
+version = "0.1.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/1d/f142a6a0727e3236c5ed213704bbec9b0ebb5646f8d1f87f9935835729ca/langgraph_cli-0.1.81.tar.gz", hash = "sha256:6d03c8c8306b3c241f6c5f8c9c632a82005b912eb36314170140a5559a3c6f32", size = 29832 }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/7f/913e449a274d92ccf03b9d7e49943f8a84418f825e09fc3d8bb204880f6e/langgraph_cli-0.1.83.tar.gz", hash = "sha256:1dde9c644176a6e2336a3466c1d953e6c26d3ec8ff2a880213e01eadc14efba3", size = 30238 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/69/afb4eea88649664c5c3913c05926e1877f0e9f7d91aaf0b4fd4f4f08703c/langgraph_cli-0.1.81-py3-none-any.whl", hash = "sha256:db4dde06e26b7fdc38c3aa65fe83f8503b9c1277d8b2984486935616340e8ac2", size = 32331 },
+    { url = "https://files.pythonhosted.org/packages/9e/5e/5b2208ea871e7836cf881af72dff29ed4e35916c18fbfe13f45587367a16/langgraph_cli-0.1.83-py3-none-any.whl", hash = "sha256:8043ce7f474ed9f520fb7a0e0e6c341fae6fcb3c0d8f1b2236a49039bfa5a9a0", size = 32664 },
 ]
 
 [[package]]
@@ -1838,15 +1838,15 @@ requires-dist = [
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "ipython", specifier = ">=8.14.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "langchain", specifier = ">=0.3.21" },
+    { name = "langchain", specifier = ">=0.3.22" },
     { name = "langchain-aws", specifier = ">=0.2.18" },
     { name = "langchain-community", specifier = ">=0.3.20" },
     { name = "langchain-core", specifier = ">=0.3.47" },
     { name = "langchain-huggingface", specifier = ">=0.1.2" },
     { name = "langchain-openai", specifier = ">=0.3.9" },
-    { name = "langgraph", specifier = ">=0.3.18" },
+    { name = "langgraph", specifier = ">=0.3.22" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0.6" },
-    { name = "langgraph-cli", specifier = ">=0.1.79" },
+    { name = "langgraph-cli", specifier = ">=0.1.83" },
     { name = "pykernel", specifier = ">=0.1.6" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "sentence-transformers", specifier = ">=4.0.1" },

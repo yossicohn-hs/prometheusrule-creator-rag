@@ -107,8 +107,8 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     """Extract service information from user messages and update state."""
     # Get all user messages
     print(f"extract_service_info: {len(state.get("messages"))}")
-    if len(state.get("messages")) > 30:
-        return {"stage": "generate_rule"}
+    # if len(state.get("messages")) > 60:
+    #     return {"stage": "generate_rule"}
 
     # Ask LLM to extract information
     chain = (
@@ -130,7 +130,24 @@ Information to collect systematically:
 - Implementation language/framework (Python, NodeJS, Golang)
 - AWS service dependencies (ALB, Redis, OpenSearch, RDS Postgres, etc.)
 - Expected load patterns
-- Any specific failure conditions to monitor
+- Note, the info should contain some basic metrics value for criticality inorder to complete e.g.:
+    - for HTTP:
+        - what is the a critical High Request Count
+        - LoadBalancer 4xx Critical Percentage(same for warning)
+        - LoadBalancer 5xx Critical Percentage(same for warning)
+        - critical latency for response time(same for warning)
+    - for OpenSearch:
+        - what is teh CPU Critical Percentage(same for warning)
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
+    - for Redis:
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the CPU Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
+    - for RabbitMQ(AWS MQ):
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the CPU Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
 
 Process:
 1. Ask only one follow-up question at a time(don't explain why you ask the question)
@@ -144,6 +161,7 @@ Response format:
         "owner": "...",
         "service_name": "...",
         "service_type": "...",
+        "namespace": "...",
         "framework": "...",
         "aws_dependencies": [...],
         "load_patterns": "...",
@@ -203,7 +221,7 @@ Response format:
         next_attempt = attempts + 1
 
         # Progress to rule generation after 3 rounds
-        if is_complete_info or attempts >= 30:
+        if is_complete_info or attempts >= 60:
             return {
                 "service_info": updated_info,
                 "stage": "retrieve_context",
@@ -257,7 +275,26 @@ Priority information to gather (if not yet known):
 - Implementation language/framework (Python, NodeJS, Golang)
 - AWS managed services it depends on (OpenSearch, ALB, Redis, RabbitMQ, etc.)
 - Any specific service metrics already being collected
-- Typical traffic patterns or processing volumes
+- Get the follwoing expected alerts by the usage of the AWS Services
+    - for HTTP:
+        - what is the a critical High Request Count
+        - LoadBalancer 4xx Critical Percentage(same for warning)
+        - LoadBalancer 5xx Critical Percentage(same for warning)
+        - critical latency for response time(same for warning)
+    - for OpenSearch:
+        - what is teh CPU Critical Percentage(same for warning)
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
+    - for Redis:
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the CPU Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
+    - for RabbitMQ(AWS MQ):
+        - what is the Memory Critical Percentage(same for warning)
+        - what is the CPU Critical Percentage(same for warning)
+        - what is the Disk Space Critical Percentage(same for warning)
+- labels: e.g. owner label ,or other needed
+- Namespace- the namespace of the service, this is used for the PrometheusRule namespace
 
 Note: We'll use standardized PrometheusRule templates for AWS services later, so we don't need detailed metric specifications at this stage.
 The resulted YAML should be verified, no redundant character or new lines
@@ -333,7 +370,9 @@ CRITICAL INSTRUCTIONS:
    - service: [service name]
 
 5. Ensure all alert expressions reference the correct service name and namespace
-
+6. Note,
+a Golang/NodeJS(non-Python) services PrometheusRule cannot use the Python example metrics like http_requests_total or http_request_duration_seconds_bucket.
+In the non-Python services you can only use the metrics that are being collected by YACE exporters.
 The final PrometheusRule must contain EVERY SINGLE ALERT from the reference examples that applies to this service's type and dependencies. Do not omit any alerts from the relevant examples.
 
 Return ONLY the complete YAML with no additional explanation."""
@@ -465,33 +504,52 @@ def build_rag_graph():
 graph = build_rag_graph()
 
 
-# # Node 3: Generate PrometheusRule
+# =========================================== Simulate user answer ===========================================
 # def simulate_user_answer(state: MessagesState) -> str:
 #     """Generate an answer to the LLM questions."""
 #     # Retrieve examples
 #     # Generate rule
 #     chain = (
 #         ChatPromptTemplate.from_template(
-#             """You are a developer of a service one of the following, not an assitance.
-#                 you are simulating the user behavior and answers to simulate the interaction with the LLM.
-#                 you are just answering for the questions you get you don't offer help
-#              1. Celery service(Python)
-#                 which is processing tasks delivered over RabbitMQ(AWS MQ service) and dependent on AWS Redis as well as AWS MQ
-#                 Processing as much as 40 tasks per second
-#                 Main functionality is to process payment
+#             """You are simulating a developer who maintains one of these services that uses an AI model. Your task is to provide realistic answers as this developer would when responding to questions about their system.
 
-#              2. HTTP service(Golang)
-#                 which is processing request, and dependent on AWS Opensearch and AWS ALB
-#                 Processing as much as 100 requests per second
-#                 Main functionality is to process payment
+# Respond only to the specific questions asked without offering additional help or information. Keep responses concise and technical.
 
-#                 Create an answer in regard the selected Service by the question given by the agent:
-#                 {agent_question}
+# Services you maintain (you'll be simulating expertise in one of these):
 
-#                followings are all your answers, pleae don't repeat yourself:
-#                {all_answers}
-#               Return only String Answer."""
-#             )
+# 1. Payment Processing Service (Python/Celery)
+#    - Event-driven architecture processing payments via RabbitMQ (AWS MQ)
+#    - owner: "infra-payments"
+#    - Dependencies: AWS Redis, AWS MQ
+#    - Current throughput: 40 tasks/second
+#    - Target capacity: 400 tasks/second
+
+# 2. Query Processing Service (Golang/HTTP)
+#    - Processes HTTP requests for payment information
+#    - owner: "payments"
+#    - Dependencies: AWS OpenSearch, AWS Application Load Balancer
+#    - Current throughput: 100 requests/second
+#    - SLA requirements:
+#      - Service latency < 100ms
+#      - OpenSearch query latency < 200ms
+
+# 3. Query Processing Service (Golang/HTTP)
+#    - Processes HTTP requests for payment information
+#    - owner: "payments"
+#    - Dependencies: AWS OpenSearch, AWS Application Load Balancer
+#    - Current throughput: 100 requests/second
+#    - SLA requirements:
+#      - Service latency < 100ms
+#      - OpenSearch query latency < 200ms
+
+# Respond as the developer of the service relevant to this query:
+# {agent_question}
+
+# Previous conversation context:
+# {all_answers}
+
+# Return only your direct answer as a string without repeating or reformatting the question."""
+#         )
 #         | llm
 #         | StrOutputParser()
 #     )
@@ -500,13 +558,13 @@ graph = build_rag_graph()
 #     if last_message and isinstance(last_message, AIMessage):
 #         content = last_message.content.replace("AI: ", "")
 
+#     all_answers = "\n".join(
+#         [msg.content for msg in messages if isinstance(msg, HumanMessage)]
+#     )
 
-#     all_answers = "\n".join([msg.content for msg in messages if isinstance(msg, HumanMessage)])
-
-#     response_answer = chain.invoke({
-#         "agent_question": content,
-#         "all_answers": all_answers
-#     })
+#     response_answer = chain.invoke(
+#         {"agent_question": content, "all_answers": all_answers}
+#     )
 #     return response_answer
 
 
@@ -521,14 +579,14 @@ graph = build_rag_graph()
 #             context=[],
 #             prometheus_rule=None,
 #             stage="extract_info",
-#             attempt_count=0
+#             attempt_count=0,
 #         )
-
+#     config = {"configurable": {"thread_id": 1}}
 #     # Add the user message to state
 #     updated_state = handle_user_input(state, message)
 
 #     # Run the graph
-#     result = graph.invoke(updated_state)
+#     result = graph.invoke(updated_state, config)
 
 #     return result
 
@@ -541,30 +599,46 @@ graph = build_rag_graph()
 #         context=[],
 #         prometheus_rule=None,
 #         stage="extract_info",
-#         attempt_count=0
+#         attempt_count=0,
 #     )
 
 #     # Test with initial message
 #     print("\n--- INITIAL MESSAGE ---")
 #     simu_state = MessagesState()
-#     simu_state.update({"messages": [AIMessage(content="Hi, Develoepr how can I help you")]})
+#     simu_state.update(
+#         {"messages": [AIMessage(content="Hi, Develoepr how can I help you")]}
+#     )
 #     answer = simulate_user_answer(simu_state)
-#     simu_state.update({"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]})
+#     simu_state.update(
+#         {"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]}
+#     )
 #     state = process_message(state, answer)
 
 #     # Print assistant response
-#     for i in range(1, 4):
+#     for i in range(1, 11):
 #         print(f"\n--- INITIAL MESSAGE {i}---")
 #         assistant_messages = [
-#             msg.content for msg in state.get("messages", []) if isinstance(msg, AIMessage)
+#             msg.content
+#             for msg in state.get("messages", [])
+#             if isinstance(msg, AIMessage)
 #         ]
 #         agent_questions = None
 #         if assistant_messages:
 #             agent_questions = assistant_messages[-1]
 #             print(f"\n\nAI: {agent_questions}")
-#         simu_state.update({"messages": simu_state.get("messages", []) + [AIMessage(content=agent_questions)]})
+#         simu_state.update(
+#             {
+#                 "messages": simu_state.get("messages", [])
+#                 + [AIMessage(content=agent_questions)]
+#             }
+#         )
 #         answer = simulate_user_answer(simu_state)
-#         simu_state.update({"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]})
+#         simu_state.update(
+#             {
+#                 "messages": simu_state.get("messages", [])
+#                 + [HumanMessage(content=answer)]
+#             }
+#         )
 #         print(f"\nUser: {answer}")
 #         state = process_message(state, answer)
 #         if state.get("stage") == "complete":
