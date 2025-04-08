@@ -121,6 +121,7 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     )
     next_question = extraced_info.next_question
     service_info_dict = extraced_info.__dict__
+    print(f"service_info_dict: {service_info_dict}")
     del service_info_dict["next_question"]
 
     try:
