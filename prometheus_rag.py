@@ -107,7 +107,7 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     all_str_messages = ""
     for msg in all_messages:
         content = msg.content
-        name = "Questions" if type(msg) is AIMessage else "Answer"
+        name = "Question" if type(msg) is AIMessage else "Answer"
         all_str_messages = (
             all_str_messages + "\n" + f"------ {name} ------\n" + content + "\n"
         )
