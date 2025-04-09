@@ -47,14 +47,14 @@ class RuleGenerationState(MessagesState):
 
 
 # Initialize LLM
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
-# llm = ChatBedrockConverse(
-#     # model="anthropic.claude-3-7-sonnet-20250219-v1:0",
-#     # model="anthropic.claude-3-5-haiku-20241022-v1:0",
-#     model="amazon.nova-pro-v1:0",
-#     temperature=0.01,
-#     max_tokens=1000,
-# )
+# llm = ChatOpenAI(model="gpt-4o", temperature=0)
+llm = ChatBedrockConverse(
+    # model="anthropic.claude-3-7-sonnet-20250219-v1:0",
+    # model="anthropic.claude-3-5-haiku-20241022-v1:0",
+    model="amazon.nova-pro-v1:0",
+    temperature=0.01,
+    max_tokens=1000,
+)
 
 
 def get_context_from_state(state: RuleGenerationState) -> List[Document]:
@@ -121,6 +121,7 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     )
     next_question = extraced_info.next_question
     service_info_dict = extraced_info.__dict__
+    print(f"last User Message: {all_messages[:-1]}")
     print(f"service_info_dict: {service_info_dict}")
     del service_info_dict["next_question"]
 
