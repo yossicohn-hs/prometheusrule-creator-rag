@@ -142,20 +142,22 @@ CRITICAL INSTRUCTIONS:
 
 3. Service-type monitoring:
    - Use service_info["service_type"] to determine monitoring type
-   - For service_type = "celery": Include ALL rules from celery-service.rule example
-   - For service_type = "http": Include ALL rules from alb.rules, if its a Python you may use http-service.rules as well
-   - if you have redis use redis.rules as well other dependencies
-   - if you have Opensearch use opensearch.rules as well other dependencies
-   - if you have HTTP use alb.rules
-   - All PrometehusRules MUST have the DesiredVsActualPods and HighMemoryConsumption rules included
+   - For service_type = "celery": Include ALL rules from celery-service.rule as well as other dependencies
+   - For service_type = "http": Include ALL rules from alb.rules, if its a framework: python you may use python-http.rules as well
+   - if you have aws_dependencies include redis use redis.rules as well other dependencies
+   - if you have aws_dependencies include opensearch use opensearch.rules as well other dependencies
+   - if you have aws_dependencies include rabbitmq use celery-service.rules as well other dependencies
 
 4. Standard monitoring:
-   - ALWAYS include ALL standard POD metrics (CPU/Memory/Health)
+   - ALWAYS include ALL standard POD metrics (CDesiredVsActualPods and HighMemoryConsumption)
    - These are required for every service regardless of type
 
 5. Kubernetes YAML structure:
    - Group alerts by type (service-specific, each dependency, standard metrics)
    - Ensure proper indentation and YAML formatting
+   - You MUST be Ensure to generate a full Valid PrometheusRule YAML
+   - Use the alerts PromQLas is don't chnage them
+   - Yo May change only the threashold values in the PromQL 
 
 6. Labels configuration:
    - owner: service_info["owner"]
@@ -175,8 +177,9 @@ VERIFICATION CHECKLIST (MANDATORY):
 - Did you include ALL service-type specific alerts based on service_type value?
 - Did you include ALL standard POD metrics?
 - Did you correctly set all labels using values from service_info?
+- Did you ensure proper YAML formatting and indentation?
 
-The final PrometheusRule MUST contain EVERY SINGLE ALERT from the REFERENCE EXAMPLES that applies to this service's type and ALL its dependencies without exception.
+The final PrometheusRule MUST contain EVERY SINGLE ALERT from the REFERENCE Docs that applies to this service's type and ALL its dependencies without exception.
 
 SERVICE DETAILS:
 {service_info}

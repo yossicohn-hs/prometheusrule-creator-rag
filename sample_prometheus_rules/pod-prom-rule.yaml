@@ -1,24 +1,24 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: http-service.rules
-  namespace: http-service
+  name: pod.rules
+  namespace: pod
 spec:
   groups:
-  - name: http-service.rules
+  - name: pod.rules
     rules:
     - alert: DesiredVsActualPods
       annotations:
-        description: Desired pods for HTTP-service is larger than actual pods
+        description: Desired pods for pod is larger than actual pods
           for too long. Please ensure everything is configured correctly.
-        summary: Desired pods larger than actual pods - HTTP-service
+        summary: Desired pods larger than actual pods - pod
       expr: |
         ((
-          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{exported_namespace=~"HTTP-service"}[5m])) by (exported_namespace) /
-          avg(avg_over_time(kube_deployment_spec_replicas{exported_namespace=~"HTTP-service"}[5m])) by (exported_namespace)
+          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{exported_namespace=~"pod-namespace"}[5m])) by (exported_namespace) /
+          avg(avg_over_time(kube_deployment_spec_replicas{exported_namespace=~"pod-namespace"}[5m])) by (exported_namespace)
         ) or (
-          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{namespace=~"HTTP-service"}[5m])) by (namespace) /
-          avg(avg_over_time(kube_deployment_spec_replicas{namespace=~"HTTP-service"}[5m])) by (namespace)
+          avg(avg_over_time(kube_horizontalpodautoscaler_status_desired_replicas{namespace=~"pod-namespace"}[5m])) by (namespace) /
+          avg(avg_over_time(kube_deployment_spec_replicas{namespace=~"pod-namespace"}[5m])) by (namespace)
         )) < 0.9
       for: 10m
       labels:
@@ -33,8 +33,8 @@ spec:
           High memory usage - service {{ $labels.namespace }} / container {{ $labels.container }}
       expr: |
         (
-          max(max_over_time(container_memory_usage_bytes{namespace="HTTP-service", container!=""}[5m])) by (namespace, container) /
-          avg(avg_over_time(container_spec_memory_limit_bytes{namespace="HTTP-service", container!=""}[5m])) by (namespace, container)
+          max(max_over_time(container_memory_usage_bytes{namespace="pod-namespace", container!=""}[5m])) by (namespace, container) /
+          avg(avg_over_time(container_spec_memory_limit_bytes{namespace="pod-namespace", container!=""}[5m])) by (namespace, container)
         ) > 0.9
       for: 10m
       labels:
