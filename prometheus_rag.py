@@ -49,9 +49,9 @@ class RuleGenerationState(MessagesState):
 # Initialize LLM
 # llm = ChatOpenAI(model="gpt-4o", temperature=0)
 llm = ChatBedrockConverse(
-    # model="anthropic.claude-3-7-sonnet-20250219-v1:0",
+    model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     # model="anthropic.claude-3-5-haiku-20241022-v1:0",
-    model="amazon.nova-pro-v1:0",
+    # model="amazon.nova-pro-v1:0",
     temperature=0.01,
     max_tokens=1000,
 )
@@ -76,7 +76,15 @@ def get_context_from_state(state: RuleGenerationState) -> List[Document]:
         },
         config,
     )
-    retrieved_docs = retriever.get_relevant_documents(result_str)
+    print(f"get_context_from_state : {result_str}")
+    
+    retrieved_docs = retriever.invoke(result_str)
+    print(f"Retrieved documents: {len(retrieved_docs)}")
+    for doc in retrieved_docs:  # type: ignore
+        metadata = doc.metadata
+        name = metadata.get("name")
+        print(f"Document name: {name}")
+        
     return retrieved_docs
 
 
@@ -90,7 +98,13 @@ def format_documents(documents: List[Document]):
 def retrieve_context(state: RuleGenerationState):
     retrieved_docs = get_context_from_state(state)
     retrieved_docs_as_context = format_documents(retrieved_docs)
-    return {"context": retrieved_docs_as_context, "stage": "generate_prometheus_rule"}
+    state.update(
+        {
+            "context": retrieved_docs_as_context,
+            "stage": "generate_prometheus_rule",
+        }
+    )
+    return state
 
 
 # Node 1: Extract information from user inputs
@@ -121,7 +135,7 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     )
     next_question = extraced_info.next_question
     service_info_dict = extraced_info.__dict__
-    print(f"last User Message: {all_messages[:-1]}")
+    # print(f"last User Message: {all_messages[:-1]}")
     print(f"service_info_dict: {service_info_dict}")
     del service_info_dict["next_question"]
 
