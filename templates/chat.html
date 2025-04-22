@@ -230,7 +230,11 @@
                 sessionId = data.session_id;
                 
                 // Add assistant message to chat
-                addMessage(data.message, false);
+                if (data.complete==false) {
+                    addMessage(data.message, false);
+                }else{
+                    addMessage("Based on the information you've provided, I've created a PrometheusRule for your service:", false);
+                }
                 
                 // Show PrometheusRule if complete
                 if (data.complete && data.prometheus_rule) {
@@ -257,7 +261,9 @@
         });
         
         // Initial greeting
-        addMessage('Hello! I can help you create a PrometheusRule for monitoring your Kubernetes service. Please describe your service.', false);
+        addMessage('Hello!', false);
+        addMessage('I can help you create a PrometheusRule for monitoring your Kubernetes service.', false);
+        addMessage('Please describe your service.', false);
   
         let currentSessionId = sessionId;
 
