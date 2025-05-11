@@ -180,19 +180,28 @@ Services you maintain (you'll be simulating expertise in one of these):
    - Current throughput: 40 tasks/second
    - Target capacity: 400 tasks/second
 
-2. Query Processing Service (Golang/HTTP)
+2. Payment Processing Service (Python/HTTP)
+   - Processes HTTP requests for job applications
+   - owner: "core-jobme"
+   - Dependencies: AWS OpenSearch, AWS ALB, AWS REDIS
+   - Current throughput: 860 requests/second
+   - SLA requirements:
+     - Service latency < 100ms
+     - OpenSearch query latency < 250ms
+   
+3. Query Processing Service (Golang/HTTP)
    - Processes HTTP requests for payment information
    - owner: "payments"
-   - Dependencies: AWS OpenSearch, AWS Application Load Balancer
+   - Dependencies: AWS OpenSearch, AWS ALB, AWS REDIS
    - Current throughput: 100 requests/second
    - SLA requirements:
      - Service latency < 100ms
      - OpenSearch query latency < 200ms
 
-3. Query Processing Service (Golang/HTTP)
+4. Query Processing Service (Golang/HTTP)
    - Processes HTTP requests for payment information
    - owner: "payments"
-   - Dependencies: AWS OpenSearch, AWS Application Load Balancer
+   - Dependencies: AWS OpenSearch, AWS ALB
    - Current throughput: 100 requests/second
    - SLA requirements:
      - Service latency < 100ms
