@@ -80,24 +80,11 @@ def get_context_from_state(state: RuleGenerationState) -> List[Document]:
     
     retrieved_docs = retriever.invoke(result_str)
     print(f"Retrieved documents: {len(retrieved_docs)}")
-    contains_rabbit_doc = False
     for doc in retrieved_docs:  # type: ignore
         metadata = doc.metadata
         name = metadata.get("name")
-        if "rabbit" in name:
-            contains_rabbit_doc = True
         print(f"Document name: {name}")
-    
-   
-    if contains_rabbit_doc:
-        contains_mq = any("mq" in item.low() for item in aws_dependencies)
-        if not contains_mq:
-            filtered_list = [doc for doc in retrieved_docs if not "rabbit" in doc.metadata.get("name")]
-            retrieved_docs = filtered_list
-    for doc in retrieved_docs:  # type: ignore
-        metadata = doc.metadata
-        name = metadata.get("name")
-        print(f"Document name: {name}")        
+           
     return retrieved_docs
 
 
@@ -374,105 +361,105 @@ graph = build_rag_graph()
 
 
 # =========================================== Simulate user answer ===========================================
-# def simulate_user_answer(state: MessagesState) -> str:
-#     """Generate an answer to the LLM questions."""
-#     # Retrieve examples
-#     # Generate rule
-#     chain = (
-#         ChatPromptTemplate.from_template(SIMUPLATE_USER_ANSWER_PROMT)
-#         | llm
-#         | StrOutputParser()
-#     )
-#     messages = state.get("messages", [])
-#     last_message = messages[-1] if messages else None
-#     if last_message and isinstance(last_message, AIMessage):
-#         content = last_message.content.replace("AI: ", "")
+def simulate_user_answer(state: MessagesState) -> str:
+    """Generate an answer to the LLM questions."""
+    # Retrieve examples
+    # Generate rule
+    chain = (
+        ChatPromptTemplate.from_template(SIMUPLATE_USER_ANSWER_PROMT)
+        | llm
+        | StrOutputParser()
+    )
+    messages = state.get("messages", [])
+    last_message = messages[-1] if messages else None
+    if last_message and isinstance(last_message, AIMessage):
+        content = last_message.content.replace("AI: ", "")
 
-#     all_answers = "\n".join(
-#         [msg.content for msg in messages if isinstance(msg, HumanMessage)]
-#     )
+    all_answers = "\n".join(
+        [msg.content for msg in messages if isinstance(msg, HumanMessage)]
+    )
 
-#     response_answer = chain.invoke(
-#         {"agent_question": content, "all_answers": all_answers}
-#     )
-#     return response_answer
-
-
-# # Process message function for LangGraph Studio
-# def process_message(state, message: str):
-#     """Process a user message in the RAG workflow."""
-#     # Initialize state if this is a new conversation
-#     if not state:
-#         state = RuleGenerationState(
-#             messages=[],
-#             service_info={},
-#             context=[],
-#             prometheus_rule=None,
-#             stage="extract_info",
-#             attempt_count=0,
-#         )
-#     config = {"configurable": {"thread_id": 1}}
-#     # Add the user message to state
-#     updated_state = handle_user_input(state, message)
-
-#     # Run the graph
-#     result = graph.invoke(updated_state, config)
-
-#     return result
+    response_answer = chain.invoke(
+        {"agent_question": content, "all_answers": all_answers}
+    )
+    return response_answer
 
 
-# # For local testing
-# if __name__ == "__main__":
-#     state = RuleGenerationState(
-#         messages=[],
-#         service_info={},
-#         context=[],
-#         prometheus_rule=None,
-#         stage="extract_info",
-#         attempt_count=0,
-#         session_id="1",
-#     )
+# Process message function for LangGraph Studio
+def process_message(state, message: str):
+    """Process a user message in the RAG workflow."""
+    # Initialize state if this is a new conversation
+    if not state:
+        state = RuleGenerationState(
+            messages=[],
+            service_info={},
+            context=[],
+            prometheus_rule=None,
+            stage="extract_info",
+            attempt_count=0,
+        )
+    config = {"configurable": {"thread_id": 1}}
+    # Add the user message to state
+    updated_state = handle_user_input(state, message)
 
-#     # Test with initial message
-#     print("\n--- INITIAL MESSAGE ---")
-#     simu_state = MessagesState()
-#     simu_state.update(
-#         {"messages": [AIMessage(content="Hi, Develoepr how can I help you")]}
-#     )
-#     answer = simulate_user_answer(simu_state)
-#     simu_state.update(
-#         {"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]}
-#     )
-#     state = process_message(state, answer)
+    # Run the graph
+    result = graph.invoke(updated_state, config)
 
-#     # Print assistant response
-#     for i in range(1, MAX_CONVERSATION_ITERATIONS):
-#         print(f"\n--- INITIAL MESSAGE {i}---")
-#         assistant_messages = [
-#             msg.content
-#             for msg in state.get("messages", [])
-#             if isinstance(msg, AIMessage)
-#         ]
-#         agent_questions = None
-#         if assistant_messages:
-#             agent_questions = assistant_messages[-1]
-#             print(f"\n\nAI: {agent_questions}")
-#         simu_state.update(
-#             {
-#                 "messages": simu_state.get("messages", [])
-#                 + [AIMessage(content=agent_questions)]
-#             }
-#         )
-#         answer = simulate_user_answer(simu_state)
-#         simu_state.update(
-#             {
-#                 "messages": simu_state.get("messages", [])
-#                 + [HumanMessage(content=answer)]
-#             }
-#         )
-#         print(f"\nUser: {answer}")
-#         state = process_message(state, answer)
-#         if state.get("stage") == "complete":
-#             print("\n--- COMPLETED ---\n\n")
-#             print(f"\nPrometheusRule: {state.get('prometheus_rule')}")
-#             break
+    return result
+
+
+# For local testing
+if __name__ == "__main__":
+    state = RuleGenerationState(
+        messages=[],
+        service_info={},
+        context=[],
+        prometheus_rule=None,
+        stage="extract_info",
+        attempt_count=0,
+        session_id="1",
+    )
+
+    # Test with initial message
+    print("\n--- INITIAL MESSAGE ---")
+    simu_state = MessagesState()
+    simu_state.update(
+        {"messages": [AIMessage(content="Hi, Develoepr how can I help you")]}
+    )
+    answer = simulate_user_answer(simu_state)
+    simu_state.update(
+        {"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]}
+    )
+    state = process_message(state, answer)
+
+    # Print assistant response
+    for i in range(1, MAX_CONVERSATION_ITERATIONS):
+        print(f"\n--- INITIAL MESSAGE {i}---")
+        assistant_messages = [
+            msg.content
+            for msg in state.get("messages", [])
+            if isinstance(msg, AIMessage)
+        ]
+        agent_questions = None
+        if assistant_messages:
+            agent_questions = assistant_messages[-1]
+            print(f"\n\nAI: {agent_questions}")
+        simu_state.update(
+            {
+                "messages": simu_state.get("messages", [])
+                + [AIMessage(content=agent_questions)]
+            }
+        )
+        answer = simulate_user_answer(simu_state)
+        simu_state.update(
+            {
+                "messages": simu_state.get("messages", [])
+                + [HumanMessage(content=answer)]
+            }
+        )
+        print(f"\nUser: {answer}\n\n")
+        state = process_message(state, answer)
+        if state.get("stage") == "complete":
+            print("\n--- COMPLETED ---\n\n")
+            print(f"\nPrometheusRule: {state.get('prometheus_rule')}")
+            break

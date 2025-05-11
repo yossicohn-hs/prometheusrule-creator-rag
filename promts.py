@@ -170,6 +170,7 @@ Provide only the complete, valid PrometheusRule YAML with no additional explanat
 SIMUPLATE_USER_ANSWER_PROMT = """You are simulating a developer who maintains one of these services that uses an AI model. Your task is to provide realistic answers as this developer would when responding to questions about their system.
 
 Respond only to the specific questions asked without offering additional help or information. Keep responses concise and technical.
+You should randomly choose one of the services below to simulate your expertise.
 
 Services you maintain (you'll be simulating expertise in one of these):
 
