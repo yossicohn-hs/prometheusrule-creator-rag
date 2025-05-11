@@ -136,9 +136,10 @@
         <button id="copy-rule">Copy to clipboard</button>
     </div>
     
-    <div>
+    <div class="button-container">
         <button id="new-session-btn">Start New Session</button>
         <button id="clear-session-btn">Clear Current Session</button>
+        <button id="simulator-btn">Run Simulator</button>
     </div>
 
     <script>
@@ -302,6 +303,88 @@
                 }
             } catch (error) {
                 console.error("Error clearing session:", error);
+            }
+        });
+
+        // Add simulation functionality
+        let simulationRunning = false;
+        const simulatorButton = document.getElementById('simulator-btn');
+        
+        async function runSimulation() {
+    
+            
+            simulationRunning = true;
+            simulatorButton.textContent = 'Stop Simulator';
+            
+            try {
+                var starting = true;
+                while (simulationRunning) {
+                    // Step 1: Get simulated user response
+                    
+                    
+                    if (starting) {
+                        var sessionId = "1";
+                        var message = "Hi Developer tell me about your Service";
+                        addMessage("Simulating user input...", false);
+                    }else{
+
+                    }
+                    const userResponse = await fetch('/api/simul/user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: message, session_id: sessionId })
+                    });
+                    starting = false;
+                    const userData = await userResponse.json();
+                    sessionId = userData.session_id;
+                    addMessage(userData.message, true);
+                    
+                    // Slight pause for visual effect
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Step 2: Get LLM response to user message
+                    const llmResponse = await fetch('/api/simul/llm', {
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            message: userData.message, 
+                            session_id: sessionId 
+                        })
+                    });
+                    
+                    const llmData = await llmResponse.json();
+                    addMessage(llmData.message, false);
+                    message = llmData.message;
+                    // Display PrometheusRule if available
+                    if (llmData.complete && llmData.prometheus_rule) {
+                        prometheusRuleSection.style.display = 'block';
+                        ruleContent.textContent = llmData.prometheus_rule;
+                        
+                        // Stop simulation if we've reached completion
+                        simulationRunning = false;
+                        simulatorButton.textContent = 'Run Simulator';
+                        break;
+                    }
+                    
+                    // Pause between exchanges
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            } catch (error) {
+                console.error('Simulation error:', error);
+                addMessage('Simulation error occurred. Please try again.', false);
+                simulationRunning = false;
+                simulatorButton.textContent = 'Run Simulator';
+            }
+        }
+        
+        simulatorButton.addEventListener('click', function() {
+            if (simulationRunning) {
+                // Stop simulation
+                simulationRunning = false;
+                simulatorButton.textContent = 'Run Simulator';
+            } else {
+                // Start simulation
+                runSimulation();
             }
         });
     </script>

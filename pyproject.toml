@@ -23,6 +23,7 @@ dependencies = [
     "langgraph-cli>=0.1.83",
     "pykernel>=0.1.6",
     "pyyaml>=6.0.2",
+    "requests>=2.32.3",
     "sentence-transformers>=4.0.1",
     "uvicorn>=0.34.0",
 ]
