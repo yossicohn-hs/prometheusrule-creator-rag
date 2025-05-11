@@ -53,7 +53,7 @@ llm = ChatBedrockConverse(
     # model="anthropic.claude-3-5-haiku-20241022-v1:0",
     # model="amazon.nova-pro-v1:0",
     temperature=0.01,
-    max_tokens=1000,
+    max_tokens=2000,
 )
 
 
@@ -80,11 +80,24 @@ def get_context_from_state(state: RuleGenerationState) -> List[Document]:
     
     retrieved_docs = retriever.invoke(result_str)
     print(f"Retrieved documents: {len(retrieved_docs)}")
+    contains_rabbit_doc = False
     for doc in retrieved_docs:  # type: ignore
         metadata = doc.metadata
         name = metadata.get("name")
+        if "rabbit" in name:
+            contains_rabbit_doc = True
         print(f"Document name: {name}")
-        
+    
+   
+    if contains_rabbit_doc:
+        contains_mq = any("mq" in item.low() for item in aws_dependencies)
+        if not contains_mq:
+            filtered_list = [doc for doc in retrieved_docs if not "rabbit" in doc.metadata.get("name")]
+            retrieved_docs = filtered_list
+    for doc in retrieved_docs:  # type: ignore
+        metadata = doc.metadata
+        name = metadata.get("name")
+        print(f"Document name: {name}")        
     return retrieved_docs
 
 

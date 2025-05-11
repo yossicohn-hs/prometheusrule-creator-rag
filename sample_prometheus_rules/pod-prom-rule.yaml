@@ -3,6 +3,10 @@ kind: PrometheusRule
 metadata:
   name: pod.rules
   namespace: pod
+  labels:
+    framework: python/nodejs/golang
+    type: HTTP/Celery
+    description: "CPU | MEM | Memory | Pod | Kubernetes Pod"
 spec:
   groups:
   - name: pod.rules

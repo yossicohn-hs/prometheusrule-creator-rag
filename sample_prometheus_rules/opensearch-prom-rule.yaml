@@ -5,6 +5,7 @@ metadata:
   labels:
     framework: python/nodejs/golang
     type: HTTP/Celery
+    description: "OpenSearch | AWS Service | Amazon OpenSearch, Elasticsearch, ES"
 spec:
   groups:
   - name: opensearch.rules

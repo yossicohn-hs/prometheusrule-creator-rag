@@ -4,7 +4,8 @@ metadata:
   labels:
     framework: python
     type: celery
-  name: rabbitmq.rule
+    description: "RabbitMQ | Celery"
+  name: rabbitmq.rules
   namespace: rabbitmq
 spec:
   groups:

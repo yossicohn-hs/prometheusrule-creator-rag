@@ -1,11 +1,12 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: python-http-service.rule
+  name: python-http-service.rules
   namespace: python-http-service
   labels:
     framework: python
     type: HTTP
+    description: "Python | HTTP | Python Web Service"
 spec:
   groups:
   - name: python-http-service.alerts

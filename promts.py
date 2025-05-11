@@ -21,6 +21,7 @@ Model Instructions:
   2. User provided information that addresses framework, service_type, 5 other required fields, environment AND number of questions asked was > 10
   3. User explicitly states they are done or don't have more information
   4. There are no more logical questions to ask given the context
+  5. Ask Specifically the namespace, owner, service_name, service_type
 - When setting "is_complete_info" to true, set next_question to "Information collection complete."
 - Required fields: namespace, owner, service_name, service_type, framework, environment
 
@@ -123,71 +124,46 @@ this would be used in query the vector search indexing.
 """
 
 
-GENERATE_PROMETHEUS_RULE_PROMT = """You are an expert in Kubernetes monitoring and Prometheus.
+GENERATE_PROMETHEUS_RULE_PROMT = """Generate a complete PrometheusRule custom resource for Kubernetes monitoring based on the service details below.
 
-Task: Create a comprehensive PrometheusRule custom resource for the Kubernetes service described below.
+# Service Requirements
+You'll create a monitoring configuration for a Kubernetes service with these specifications:
+- Use the service details from {service_info}
+- Include appropriate alerts based on service type and aws_dependencies
+- Follow all YAML formatting requirements for PrometheusRule resources
 
+# Alert Rules Priority
+1. Dependency Monitoring (HIGHEST PRIORITY):
+   - Include alerts for ALL dependencies listed in service_info["aws_dependencies"]
+   - Review service_info["failure_conditions"] for additional dependency mentions
 
-CRITICAL INSTRUCTIONS:
-1. DEPENDENCY ALERTS - HIGHEST PRIORITY:
-   - Extract ALL dependencies from service_info["aws_dependencies"] array
-   - For EACH identified dependency in the array, you MUST include ALL corresponding alert rules
-   - Specifically check for "AWS Redis", "Redis", "ElastiCache", "AWS MQ", "RabbitMQ" and include ALL related alerts
-   - Exact copy is required - do not modify, summarize, or omit ANY dependency alert rules
-   - IMPORTANT: If "AWS Redis" or "Redis" appears ANYWHERE in service_info, you MUST include ALL Redis alert rules
+2. Service-Type Monitoring:
+   - For "celery" services: Include all rules from rabbitmq.rules
+   - For "http" services: Include all rules from alb.rules
+   - For "Python" type HTTP framework services: Add python-http-service.rules
+   - For NON "Python" ONLY type HTTP framework services: Add alb.rules
+   - For "Redis" services: Include all rules from redis.rules
+   - For ALL: MUST Include all rules from pod.rules
 
-2. Additional dependencies check:
-   - Also scan service_info["failure_conditions"] for any mentioned dependencies
-   - If any dependency (like "Redis connection issues") is mentioned here, ensure its alerts are included
+3. Standard Pod Monitoring:
+   - Always include CDesiredVsActualPods and HighMemoryConsumption metrics
+   - These are mandatory for all services
 
-3. Service-type monitoring:
-   - Use service_info["service_type"] to determine monitoring type
-   - For service_type = "celery": Include ALL rules from celery-service.rule as well as other dependencies
-   - For service_type = "http": Include ALL rules from alb.rules, if its a framework: python you may use python-http.rules as well
-   - if you have aws_dependencies include redis use redis.rules as well other dependencies
-   - if you have aws_dependencies include opensearch use opensearch.rules as well other dependencies
-   - if you have aws_dependencies include rabbitmq use celery-service.rules as well other dependencies
+# YAML Configuration Requirements
+- Group alerts logically by type
+- Use proper YAML indentation and formatting
+- Maintain original PromQL expressions (only thresholds may be adjusted)
+- Configure labels:
+  * owner: service_info["owner"]
+  * severity: [use original severity levels]
+  * service: service_info["service_name"]
+- Ensure all alert expressions reference the correct service_name and namespace
 
-4. Standard monitoring:
-   - ALWAYS include ALL standard POD metrics (CDesiredVsActualPods and HighMemoryConsumption)
-   - These are required for every service regardless of type
+# Reference Materials
+The examples in {context} show the required format and alert rules.
 
-5. Kubernetes YAML structure:
-   - Group alerts by type (service-specific, each dependency, standard metrics)
-   - Ensure proper indentation and YAML formatting
-   - You MUST be Ensure to generate a full Valid PrometheusRule YAML
-   - Use the alerts PromQLas is don't chnage them
-   - Yo May change only the threashold values in the PromQL 
-
-6. Labels configuration:
-   - owner: service_info["owner"]
-   - severity: [as defined in original rules]
-   - service: service_info["service_name"]
-
-7. Technical requirements:
-   - All alert expressions MUST reference the correct service_name and namespace from service_info
-   - For non-Python services, use only metrics collected by YACE exporters
-   - Do not use Python-specific metrics for non-Python services
-   - You MUST be sure to generate a full Valid PrometheusRule YAML
-
-VERIFICATION CHECKLIST (MANDATORY):
-- Did you include ALL Redis alerts? (CRITICAL CHECK)
-- Did you include ALL RabbitMQ alerts? (CRITICAL CHECK)
-- Did you check for ALL dependencies in both aws_dependencies AND failure_conditions?
-- Did you include ALL service-type specific alerts based on service_type value?
-- Did you include ALL standard POD metrics?
-- Did you correctly set all labels using values from service_info?
-- Did you ensure proper YAML formatting and indentation?
-
-The final PrometheusRule MUST contain EVERY SINGLE ALERT from the REFERENCE Docs that applies to this service's type and ALL its dependencies without exception.
-
-SERVICE DETAILS:
-{service_info}
-
-REFERENCE EXAMPLES:
-{context}
-
-Return ONLY the complete YAML with no additional explanation.
+# Output
+Provide only the complete, valid PrometheusRule YAML with no additional explanations.
 """
 
 
