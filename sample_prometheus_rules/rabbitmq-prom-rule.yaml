@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    framework: python
+    type: celery
+    description: "RabbitMQ | Celery"
+  name: rabbitmq.rules
+  namespace: rabbitmq
+spec:
+  groups:
+    - name: high-load
+      rules:
+        - alert: High load on queue worker-queue for worker
+          annotations:
+            description: high load on {{ $labels.queue }} queue - {{ $labels.value }}
+              tasks.
+            summary: high load on {{ $labels.queue }}
+          expr: min(rabbitmq_queue_messages{queue=~"worker-queue.*worker",
+            applicative_environment=~"production"}) by (queue) > 100
+          for: 30m
+          labels:
+            owner: ops
+            severity: warning
+       
+

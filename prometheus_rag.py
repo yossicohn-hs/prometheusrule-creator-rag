@@ -5,22 +5,32 @@ from langchain import hub
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 from langgraph.graph import MessagesState
 from langgraph.checkpoint.memory import MemorySaver
-
+from extracted_user_info import ExtractedUserInfo
+from promts import (
+    EXTRACT_INFO_PROMT,
+    GENERATE_QUESTION_PROMT,
+    GET_CONTEXT_FOR_RETRIEVE_PROMT,
+    GENERATE_PROMETHEUS_RULE_PROMT,
+    SIMUPLATE_USER_ANSWER_PROMT,
+)
 from embeddings import init_vectorstore
 from dotenv import load_dotenv
-
+import requests
+   
+MAX_CONVERSATION_ITERATIONS = 50
 
 load_dotenv(verbose=True)
 
 retriever = init_vectorstore(topk=5)
 
 # Define prompt for question-answering
-prompt = hub.pull("rlm/rag-prompt")
+# prompt = hub.pull("rlm/rag-prompt")
 
 
 # State definition
@@ -38,7 +48,14 @@ class RuleGenerationState(MessagesState):
 
 
 # Initialize LLM
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+# llm = ChatOpenAI(model="gpt-4o", temperature=0)
+llm = ChatBedrockConverse(
+    model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    # model="anthropic.claude-3-5-haiku-20241022-v1:0",
+    # model="amazon.nova-pro-v1:0",
+    temperature=0.01,
+    max_tokens=24000,
+)
 
 
 def get_context_from_state(state: RuleGenerationState) -> List[Document]:
@@ -47,32 +64,7 @@ def get_context_from_state(state: RuleGenerationState) -> List[Document]:
     framework = service_info.get("framework")
     aws_dependencies = service_info.get("aws_dependencies")
     chain = (
-        ChatPromptTemplate.from_template(
-            """You are an AWS terminology expert helping to improve document searchability for Kubernetes PrometheusRules.
-
-For each AWS service, service type, and framework mentioned in the input, generate all common acronyms, abbreviations, and synonyms that might appear in documentation or conversations.
-
-Input:
-- AWS Dependencies: {aws_dependencies}
-- Service Types: {service_type}
-- Frameworks: {framework}
-
-Please format your response as a list of terms separated by columns, with one term per line:
-
-Term | Type | Variations
-
-Example output:
-ALB | AWS Service | Application Load Balancer, AWS Load Balancer, ELBv2
-Redis | AWS Service | ElastiCache, Amazon ElastiCache for Redis, Redis Cache
-RabbitMQ | AWS Service | Amazon MQ, MQ, Message Queue, AMQP
-HTTP | Service Type | Web Service, REST API, Web API, HTTP Server
-Celery | Service Type | Task Queue, Async Worker, Background Worker
-Python | Framework | py, Python3, Django, Flask, FastAPI
-Golang | Framework | Go, Go Lang
-
-Include variations in capitalization or phrasing that might be used in documentation to ensure comprehensive vector search indexing.
-            """
-        )
+        ChatPromptTemplate.from_template(GET_CONTEXT_FOR_RETRIEVE_PROMT)
         | llm
         | StrOutputParser()
     )
@@ -85,7 +77,15 @@ Include variations in capitalization or phrasing that might be used in documenta
         },
         config,
     )
-    retrieved_docs = retriever.get_relevant_documents(result_str)
+    print(f"get_context_from_state : {result_str}")
+    
+    retrieved_docs = retriever.invoke(result_str)
+    print(f"Retrieved documents: {len(retrieved_docs)}")
+    for doc in retrieved_docs:  # type: ignore
+        metadata = doc.metadata
+        name = metadata.get("name")
+        print(f"Document name: {name}")
+           
     return retrieved_docs
 
 
@@ -99,7 +99,13 @@ def format_documents(documents: List[Document]):
 def retrieve_context(state: RuleGenerationState):
     retrieved_docs = get_context_from_state(state)
     retrieved_docs_as_context = format_documents(retrieved_docs)
-    return {"context": retrieved_docs_as_context, "stage": "generate_rule"}
+    state.update(
+        {
+            "context": retrieved_docs_as_context,
+            "stage": "generate_prometheus_rule",
+        }
+    )
+    return state
 
 
 # Node 1: Extract information from user inputs
@@ -107,140 +113,64 @@ def extract_service_info(state: RuleGenerationState) -> Dict:
     """Extract service information from user messages and update state."""
     # Get all user messages
     print(f"extract_service_info: {len(state.get("messages"))}")
-    # if len(state.get("messages")) > 60:
-    #     return {"stage": "generate_rule"}
 
+    structured_output_llm = llm.with_structured_output(ExtractedUserInfo)
     # Ask LLM to extract information
-    chain = (
-        ChatPromptTemplate.from_template(
-            """You are helping create PrometheusRules for Kubernetes services.
-            
-all_messages: {all_messages}
-Current information: {current_info}
-            
-Extract relevant service information from user input and merge it with current information.
-
-Context:
-- This service runs as a Kubernetes Pod with Liveness and Readiness probes
-- Standard PrometheusRule templates will be provided later for AWS services (OpenSearch, ALB, Redis, RabbitMQ, etc.)
-
-Information to collect systematically:
-- Service functionality and purpose
-- Service type i.e. HTTP REST API, Celery worker
-- Implementation language/framework (Python, NodeJS, Golang)
-- AWS service dependencies (ALB, Redis, OpenSearch, RDS Postgres, etc.)
-- Expected load patterns
-- Note, the info should contain some basic metrics value for criticality inorder to complete e.g.:
-    - for HTTP:
-        - what is the a critical High Request Count
-        - LoadBalancer 4xx Critical Percentage(same for warning)
-        - LoadBalancer 5xx Critical Percentage(same for warning)
-        - critical latency for response time(same for warning)
-    - for OpenSearch:
-        - what is teh CPU Critical Percentage(same for warning)
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-    - for Redis:
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the CPU Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-    - for RabbitMQ(AWS MQ):
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the CPU Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-
-Process:
-1. Ask only one follow-up question at a time(don't explain why you ask the question)
-2. Categorize and summarize user responses in the service_info structure
-3. When sufficient information is gathered OR user indicates completion, set is_complete_info to true
-
-Response format:
-{{
-    "service_info": {{
-        "functionality": "...",
-        "owner": "...",
-        "service_name": "...",
-        "service_type": "...",
-        "namespace": "...",
-        "framework": "...",
-        "aws_dependencies": [...],
-        "load_patterns": "...",
-        "failure_conditions": "..."
-    }},
-    "is_complete_info": false,
-    "next_question": "Your specific follow-up question here (empty if complete)"
-}}
-"""
-        )
-        | llm
-        | StrOutputParser()
-    )
+    chain = ChatPromptTemplate.from_template(EXTRACT_INFO_PROMT) | structured_output_llm
 
     all_messages = state.get("messages", [])
     all_str_messages = ""
     for msg in all_messages:
         content = msg.content
-        name = "AI" if type(msg) is AIMessage else "User"
+        name = "Question" if type(msg) is AIMessage else "Answer"
         all_str_messages = (
             all_str_messages + "\n" + f"------ {name} ------\n" + content + "\n"
         )
     config = {"configurable": {"thread_id": state.get("session_id")}}
-    result_str = chain.invoke(
+    extraced_info: ExtractedUserInfo = chain.invoke(
         {
             "current_info": state.get("service_info", {}),
             "all_messages": all_str_messages,
         },
         config,
     )
-
-    import json
+    next_question = extraced_info.next_question
+    service_info_dict = extraced_info.__dict__
+    # print(f"last User Message: {all_messages[:-1]}")
+    print(f"service_info_dict: {service_info_dict}")
+    del service_info_dict["next_question"]
 
     try:
         # Clean the result if it's in markdown format
-        if "```" in result_str:
-            import re
-
-            match = re.search(r"```(?:json)?\n(.*?)\n```", result_str, re.DOTALL)
-            if match:
-                result_str = match.group(1)
-            else:
-                result_str = (
-                    result_str.replace("```json", "").replace("```", "").strip()
-                )
-
-        # Parse the JSON
-        result = json.loads(result_str)
-
-        # Get the updated service info
-        updated_info = result.get("service_info", {})
-
-        is_complete_info = result.get("is_complete_info", False)
-
-        # Track conversation turns
-        attempts = state.get("attempt_count", 0)
-        next_attempt = attempts + 1
+        state.update(
+            {
+                "stage": "generate_question",
+                "service_info": service_info_dict,
+                "next_attempt": state.get("attempt_count", 0) + 1,
+                "next_question": next_question,
+            }
+        )
 
         # Progress to rule generation after 3 rounds
-        if is_complete_info or attempts >= 60:
-            return {
-                "service_info": updated_info,
-                "stage": "retrieve_context",
-                "attempt_count": next_attempt,
-            }
+        if (
+            extraced_info.is_complete_info
+            or state.get("attempt_count", 0) >= MAX_CONVERSATION_ITERATIONS
+        ):
+            state.update({"stage": "retrieve_context"})
+            return state
 
         # Otherwise, move to question generation
-        return {
-            "service_info": updated_info,
-            "stage": "generate_question",
-            "attempt_count": next_attempt,
-            "next_question": result.get("next_question", ""),
-        }
-    except json.JSONDecodeError:
+        return state
+    except Exception as error:
+        print(f"Error in extracting service info: {error}")
         # Simply proceed to question generation on error
-        return {
-            "stage": "generate_question",
-            "attempt_count": state.get("attempt_count", 0) + 1,
-        }
+        state.update(
+            {
+                "stage": "complete",
+                "service_info": service_info_dict,
+            }
+        )
+        return state
 
 
 # Node 2: Generate follow-up question
@@ -248,58 +178,7 @@ def generate_follow_up_question(state: RuleGenerationState) -> Dict:
     """Generate a follow-up question based on current information."""
     # Ask LLM to formulate the next question
     chain = (
-        ChatPromptTemplate.from_template(
-            """You are helping gather information about a service to create PrometheusRules.
-            
-Current service information: {current_info}
-all_messages: {all_messages}
-advise for the next question can be {advised_next_questions}
-
-This service is a POD running in Kubernetes that uses Probes for Liveness and Readiness checks.
-All metrics needed are being collected by YACE exporters, don't question on the metrics.
-PODS metrics are also being collected.
-
-To better understand this service for PrometheusRule creation, I'll ask ONE specific follow-up question about information we still need.
-
-Guidelines:
-- Focusing on a single missing detail with each question
-- Don't explain why you ask the question, but be expressive
-- Keeping questions simple and direct
-- Building on information already provided
-- Always ask on Dependencies on AWS Services after you finish the query on the service itself
-
-
-Priority information to gather (if not yet known):
-- Service functionality and purpose
-- Service type i.e. HTTP REST API, Celery worker
-- Implementation language/framework (Python, NodeJS, Golang)
-- AWS managed services it depends on (OpenSearch, ALB, Redis, RabbitMQ, etc.)
-- Any specific service metrics already being collected
-- Get the follwoing expected alerts by the usage of the AWS Services
-    - for HTTP:
-        - what is the a critical High Request Count
-        - LoadBalancer 4xx Critical Percentage(same for warning)
-        - LoadBalancer 5xx Critical Percentage(same for warning)
-        - critical latency for response time(same for warning)
-    - for OpenSearch:
-        - what is teh CPU Critical Percentage(same for warning)
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-    - for Redis:
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the CPU Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-    - for RabbitMQ(AWS MQ):
-        - what is the Memory Critical Percentage(same for warning)
-        - what is the CPU Critical Percentage(same for warning)
-        - what is the Disk Space Critical Percentage(same for warning)
-- labels: e.g. owner label ,or other needed
-- Namespace- the namespace of the service, this is used for the PrometheusRule namespace
-
-Note: We'll use standardized PrometheusRule templates for AWS services later, so we don't need detailed metric specifications at this stage.
-The resulted YAML should be verified, no redundant character or new lines
-"""
-        )
+        ChatPromptTemplate.from_template(GENERATE_QUESTION_PROMT)
         | llm
         | StrOutputParser()
     )
@@ -321,62 +200,26 @@ The resulted YAML should be verified, no redundant character or new lines
         },
         config,
     )
-
+    state.update(
+        {
+            "messages": state.get("messages", [])
+            + [AIMessage(content=follow_up_question)],
+            "stage": "wait_for_user",
+        }
+    )
     # Return the follow-up question and stay in gather_info stage
-    return {
-        "messages": state.get("messages", []) + [AIMessage(content=follow_up_question)],
-        "stage": "wait_for_user",
-    }
+    return state
 
 
 # Node 3: Generate PrometheusRule
-def generate_rule(state: RuleGenerationState) -> Dict:
+def generate_prometheus_rule(state: RuleGenerationState) -> Dict:
     """Generate a PrometheusRule based on service info and examples."""
     # Retrieve examples
     context = state.get("context")
 
     # Generate rule
     chain = (
-        ChatPromptTemplate.from_template(
-            """You are an expert in Kubernetes monitoring and Prometheus.
-
-Task: Create a comprehensive PrometheusRule custom resource for the Kubernetes service described below.
-
-SERVICE DETAILS:
-{service_info}
-
-REFERENCE EXAMPLES:
-{context}
-
-CRITICAL INSTRUCTIONS:
-1. For EVERY AWS dependency mentioned in service_info (ALB, OpenSearch, Redis, etc.):
-   - Copy ALL alert rules from the corresponding reference examples WITHOUT OMITTING ANY
-   - Do not summarize, combine, or simplify the AWS service alert rules
-   - Include all expressions, labels, and annotations exactly as they appear in the examples
-
-2. Base service monitoring on type:
-   - If HTTP service: Copy ALL rules from http-service.rules example
-   - If Celery service: Copy ALL rules from celery-service.rule example
-   - Always include ALL standard POD metrics (CPU/Memory/Health) without exception
-
-3. Structure the final YAML to combine:
-   - Service-specific rules (based on HTTP/Celery type)
-   - Complete AWS dependency rules for EACH dependency
-   - Standard POD metrics
-   
-4. Use labels in the following manner:
-   - owner: [team name from service_info]
-   - severity: [as defined in original rules]
-   - service: [service name]
-
-5. Ensure all alert expressions reference the correct service name and namespace
-6. Note,
-a Golang/NodeJS(non-Python) services PrometheusRule cannot use the Python example metrics like http_requests_total or http_request_duration_seconds_bucket.
-In the non-Python services you can only use the metrics that are being collected by YACE exporters.
-The final PrometheusRule must contain EVERY SINGLE ALERT from the reference examples that applies to this service's type and dependencies. Do not omit any alerts from the relevant examples.
-
-Return ONLY the complete YAML with no additional explanation."""
-        )
+        ChatPromptTemplate.from_template(GENERATE_PROMETHEUS_RULE_PROMT)
         | llm
         | StrOutputParser()
     )
@@ -384,7 +227,7 @@ Return ONLY the complete YAML with no additional explanation."""
     config = {"configurable": {"thread_id": state.get("session_id")}}
     rule = chain.invoke(
         {
-            "service_info": dumps(state.get("service_info", {}), indent=2),
+            "service_info": state.get("service_info", {}),
             "context": "\n".join(context),
         },
         config,
@@ -400,13 +243,15 @@ Based on the information you've provided, I've created a PrometheusRule for your
 
 This rule includes alerts based on the metrics and thresholds you mentioned. Let me know if you'd like to make any adjustments.
 """
-
-    return {
-        "prometheus_rule": rule,
-        "context": context,
-        "messages": state.get("messages", []) + [AIMessage(content=response)],
-        "stage": "complete",
-    }
+    state.update(
+        {
+            "messages": state.get("messages", []) + [AIMessage(content=response)],
+            "stage": "complete",
+            "prometheus_rule": rule,
+            "context": context,
+        }
+    )
+    return state
 
 
 # Process user input
@@ -416,11 +261,21 @@ def handle_user_input(state: RuleGenerationState, user_input: str) -> Dict:
     updated_messages = state.get("messages", []) + [HumanMessage(content=user_input)]
 
     # If we're at the complete stage, stay there
+    state.update(
+        {
+            "messages": updated_messages,
+            "stage": "extract_info",
+        }
+    )
     if state.get("stage") == "complete":
-        return {"messages": updated_messages, "stage": "complete"}
-
+        state.update(
+            {
+                "messages": updated_messages,
+                "stage": "complete",
+            }
+        )
     # Otherwise, always start with information extraction
-    return {"messages": updated_messages, "stage": "extract_info"}
+    return state
 
 
 # Define routing based on state
@@ -436,8 +291,8 @@ def router(state: RuleGenerationState) -> str:
         return "end"
     elif stage == "retrieve_context":
         return "retrieve_context"
-    elif stage == "generate_rule":
-        return "generate_rule"
+    elif stage == "generate_prometheus_rule":
+        return "generate_prometheus_rule"
     elif stage == "complete":
         return "end"
     else:
@@ -453,7 +308,7 @@ def build_rag_graph():
     workflow.add_node("extract_info", extract_service_info)
     workflow.add_node("generate_question", generate_follow_up_question)
     workflow.add_node("retrieve_context", retrieve_context)
-    workflow.add_node("generate_rule", generate_rule)
+    workflow.add_node("generate_prometheus_rule", generate_prometheus_rule)
 
     # Connect nodes with conditional routing
     workflow.add_conditional_edges(
@@ -472,7 +327,7 @@ def build_rag_graph():
         router,
         {
             "retrieve_context": "retrieve_context",
-            "generate_rule": "generate_rule",
+            "generate_prometheus_rule": "generate_prometheus_rule",
             "end": END,
         },
     )
@@ -489,7 +344,9 @@ def build_rag_graph():
     )
 
     workflow.add_conditional_edges(
-        "generate_rule", router, {"generate_rule": END, "complete": END, "end": END}
+        "generate_prometheus_rule",
+        router,
+        {"generate_prometheus_rule": END, "complete": END, "end": END},
     )
 
     # Set entry point
@@ -504,52 +361,13 @@ def build_rag_graph():
 graph = build_rag_graph()
 
 
-# =========================================== Simulate user answer ===========================================
+# # =========================================== Simulate user answer ===========================================
 # def simulate_user_answer(state: MessagesState) -> str:
 #     """Generate an answer to the LLM questions."""
 #     # Retrieve examples
 #     # Generate rule
 #     chain = (
-#         ChatPromptTemplate.from_template(
-#             """You are simulating a developer who maintains one of these services that uses an AI model. Your task is to provide realistic answers as this developer would when responding to questions about their system.
-
-# Respond only to the specific questions asked without offering additional help or information. Keep responses concise and technical.
-
-# Services you maintain (you'll be simulating expertise in one of these):
-
-# 1. Payment Processing Service (Python/Celery)
-#    - Event-driven architecture processing payments via RabbitMQ (AWS MQ)
-#    - owner: "infra-payments"
-#    - Dependencies: AWS Redis, AWS MQ
-#    - Current throughput: 40 tasks/second
-#    - Target capacity: 400 tasks/second
-
-# 2. Query Processing Service (Golang/HTTP)
-#    - Processes HTTP requests for payment information
-#    - owner: "payments"
-#    - Dependencies: AWS OpenSearch, AWS Application Load Balancer
-#    - Current throughput: 100 requests/second
-#    - SLA requirements:
-#      - Service latency < 100ms
-#      - OpenSearch query latency < 200ms
-
-# 3. Query Processing Service (Golang/HTTP)
-#    - Processes HTTP requests for payment information
-#    - owner: "payments"
-#    - Dependencies: AWS OpenSearch, AWS Application Load Balancer
-#    - Current throughput: 100 requests/second
-#    - SLA requirements:
-#      - Service latency < 100ms
-#      - OpenSearch query latency < 200ms
-
-# Respond as the developer of the service relevant to this query:
-# {agent_question}
-
-# Previous conversation context:
-# {all_answers}
-
-# Return only your direct answer as a string without repeating or reformatting the question."""
-#         )
+#         ChatPromptTemplate.from_template(SIMUPLATE_USER_ANSWER_PROMT)
 #         | llm
 #         | StrOutputParser()
 #     )
@@ -569,7 +387,7 @@ graph = build_rag_graph()
 
 
 # # Process message function for LangGraph Studio
-# def process_message(state, message: str):
+# def process_user_message(state, message: str):
 #     """Process a user message in the RAG workflow."""
 #     # Initialize state if this is a new conversation
 #     if not state:
@@ -600,6 +418,7 @@ graph = build_rag_graph()
 #         prometheus_rule=None,
 #         stage="extract_info",
 #         attempt_count=0,
+#         session_id="1",
 #     )
 
 #     # Test with initial message
@@ -608,14 +427,23 @@ graph = build_rag_graph()
 #     simu_state.update(
 #         {"messages": [AIMessage(content="Hi, Develoepr how can I help you")]}
 #     )
+    
 #     answer = simulate_user_answer(simu_state)
+#     # requests.post(
+#     #     "http://localhost:8000/api/chat",
+#     #     json={
+#     #         "message": answer,
+#     #         "session_id": simu_state.get("session_id"),
+#     #     },
+#     #     headers={"Content-Type": "application/json"},
+#     # )
 #     simu_state.update(
 #         {"messages": simu_state.get("messages", []) + [HumanMessage(content=answer)]}
 #     )
-#     state = process_message(state, answer)
+#     state = process_user_message(state, answer)
 
 #     # Print assistant response
-#     for i in range(1, 11):
+#     for i in range(1, MAX_CONVERSATION_ITERATIONS):
 #         print(f"\n--- INITIAL MESSAGE {i}---")
 #         assistant_messages = [
 #             msg.content
@@ -639,8 +467,8 @@ graph = build_rag_graph()
 #                 + [HumanMessage(content=answer)]
 #             }
 #         )
-#         print(f"\nUser: {answer}")
-#         state = process_message(state, answer)
+#         print(f"\nUser: {answer}\n\n")
+#         state = process_user_message(state, answer)
 #         if state.get("stage") == "complete":
 #             print("\n--- COMPLETED ---\n\n")
 #             print(f"\nPrometheusRule: {state.get('prometheus_rule')}")

@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv(verbose=True)
 from fastapi import (
     FastAPI,
     Request,
@@ -15,14 +17,18 @@ import json
 import uuid
 from typing import Dict, Optional
 from pydantic import BaseModel
-
+from langchain_core.messages import HumanMessage, AIMessage
 # Import your RAG application code
 from prometheus_rag import (
     RuleGenerationState,
     build_rag_graph,
     handle_user_input,
     AIMessage,
+    simulate_user_answer,
+    process_user_message
 )
+from langgraph.graph import MessagesState
+
 
 app = FastAPI(title="PrometheusRule RAG API")
 
@@ -69,7 +75,43 @@ def get_session(session_id: Optional[str] = None):
         new_id = create_session()
         return new_id, sessions[new_id]
 
+@app.post("/api/simul", response_model=ChatResponse)
+async def chat(chat_message: ChatMessage):
+    session_id, state = get_session(chat_message.session_id)
 
+    # Process message through graph
+    updated_state = handle_user_input(state, chat_message.message)
+    updated_state["updated_state"] = session_id
+    config = {"configurable": {"thread_id": session_id}}
+    result = graph.invoke(updated_state, config)
+
+    # Update session state
+    sessions[session_id] = result
+
+    # Get latest AI message
+    ai_messages = [
+        msg.content for msg in result.get("messages", []) if isinstance(msg, AIMessage)
+    ]
+    latest_message = ai_messages[-1] if ai_messages else "No response generated."
+
+    # Check if workflow is complete
+
+    is_complete = result.get("stage") == "complete"
+
+    curr_session = sessions.get(session_id)
+    all_messages = curr_session.get("messages", [])
+    for m in all_messages[-2:]:
+        m.pretty_print()
+        print("\n\n")
+
+    return ChatResponse(
+        message=latest_message,
+        session_id=session_id,
+        complete=is_complete,
+        service_info=result.get("service_info", {}),
+        prometheus_rule=result.get("prometheus_rule"),
+    )
+    
 # REST API endpoint for chat
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(chat_message: ChatMessage):
@@ -106,6 +148,63 @@ async def chat(chat_message: ChatMessage):
         complete=is_complete,
         service_info=result.get("service_info", {}),
         prometheus_rule=result.get("prometheus_rule"),
+    )
+
+simul_user_state = MessagesState()
+simul_agent_state = RuleGenerationState(
+        messages=[],
+        service_info={},
+        context=[],
+        prometheus_rule=None,
+        stage="extract_info",
+        attempt_count=0,
+        session_id="1",
+    )
+simul_user_state.update(
+        {"messages": [AIMessage(content="Hi, Develoepr how can I help you")]}
+    )
+# Add these simulation endpoints
+@app.post("/api/simul/user", response_model=ChatResponse)
+async def simulate_user(chat_message: ChatMessage):
+    """Simulate a user message for demo purposes"""
+    global simul_user_state
+    session_id, session = get_session(chat_message.session_id)
+    simul_user_state.update(
+            {
+                "messages": simul_user_state.get("messages", [])
+                + [AIMessage(content=chat_message.message)]
+            }
+        )
+    user_message = simulate_user_answer(simul_user_state)
+    # Get a simulated user response based on current state
+    # This could be enhanced with more sophisticated logic
+    simul_user_state.update(
+            {
+                "messages": simul_user_state.get("messages", [])
+                + [HumanMessage(content=user_message)]
+            }
+        )
+    
+    return ChatResponse(
+        message=user_message,
+        session_id=session_id,
+        complete=False,
+        service_info=simul_agent_state.get("service_info", {}),
+        prometheus_rule=simul_agent_state.get("prometheus_rule"),
+    )
+
+@app.post("/api/simul/llm", response_model=ChatResponse)
+async def simulate_llm_response(chat_message: ChatMessage):
+    """Process a simulated user message and get LLM response"""
+    global simul_agent_state
+    # This reuses the existing API functionality
+    simul_agent_state = process_user_message(simul_agent_state, chat_message.message)
+    return ChatResponse(
+        message=simul_agent_state.get("messages", [])[-1].content,
+        session_id=chat_message.session_id,
+        complete=False,
+        service_info=simul_agent_state.get("service_info", {}),
+        prometheus_rule=simul_agent_state.get("prometheus_rule"),
     )
 
 

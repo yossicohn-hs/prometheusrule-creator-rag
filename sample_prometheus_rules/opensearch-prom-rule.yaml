@@ -2,6 +2,10 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: opensearch.rules
+  labels:
+    framework: python/nodejs/golang
+    type: HTTP/Celery
+    description: "OpenSearch | AWS Service | Amazon OpenSearch, Elasticsearch, ES"
 spec:
   groups:
   - name: opensearch.rules

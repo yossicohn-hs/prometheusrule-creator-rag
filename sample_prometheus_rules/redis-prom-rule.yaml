@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: redis.rules
+  labels:
+    framework: python/nodejs/golang
+    type: HTTP/Celery
+    description: "Redis | AWS Service | Redis, Redis Cache"
+spec:
+  groups:
+  - name: redis.rules
+    rules:   
+      - alert: RedisMemoryUsageHigh
+        annotations:
+          description: |
+            Redis cluster memory usage is high.
+            This is a warning alert.
+            Possible actions:
+            A - Reduce the configuration of result_expires (default is 1 day)
+            B - Increase the size of the node.
+            Affected clusters:
+            - {{ $labels.target }}
+          summary: High memory usage detected on Redis cluster
+        expr: |
+          redis_memory_used_bytes{target="redis-service-dns"}  /
+          redis_memory_max_bytes{target="redis-service-dns"} > 0.8
+        for: 5m
+        labels:
+          open_jira_ticket: "true"
+          owner: platform
+          severity: warning
+      - alert: RedisHighLatency
+        annotations:
+          summary: "Warning: High latency on Redis"
+          description: |
+            Redis latency for get commands is high
+        expr: |
+          rate(redis_commands_duration_seconds_total{target=~"redis-service-dns", cmd="get"}[5m])/
+          rate(redis_commands_total{target=~"redis-service-dns", cmd="get"}[5m]) > 0.1
+        for: 15m
+
+        
+

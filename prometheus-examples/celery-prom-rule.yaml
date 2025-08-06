@@ -87,8 +87,7 @@ spec:
               Affected clusters:
               - {{ $labels.target }}
             summary: High memory usage detected on Redis cluster
-          expr: |2
-
+          expr: |
             redis_memory_used_bytes{target="celery-redis"}  /
             redis_memory_max_bytes{target="celery-redis"} > 0.8
           for: 5m
